@@ -1,0 +1,33 @@
+{
+  "name": "resource-capacity-planner-backend",
+  "version": "1.0.0",
+  "description": "Resource Capacity Planning API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "migrate": "tsx src/database/cli.ts migrate",
+    "seed": "tsx src/database/cli.ts seed",
+    "seed:demo": "tsx src/database/cli.ts seed-demo",
+    "seed-workflow": "tsx src/database/cli.ts seed-workflow",
+    "seed-demo": "tsx src/database/cli.ts seed-demo",
+    "seed-tasks": "tsx src/database/cli.ts seed-tasks",
+    "setup": "npm run migrate && npm run seed"
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "xlsx": "^0.18.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/sql.js": "^1.4.9",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
