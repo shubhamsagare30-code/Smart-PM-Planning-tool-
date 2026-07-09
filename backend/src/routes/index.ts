@@ -14,6 +14,7 @@ import {
 } from '../controllers';
 import { adminUserController, authController } from '../controllers/authController';
 import { authenticate, requireProjectAccess, requireRoles } from '../middleware/auth';
+import { standupController } from '../controllers/standupController';
 
 const router = Router();
 
@@ -51,6 +52,15 @@ router.post('/projects/:id/tasks', requireProjectAccess, projectWorkflowControll
 router.put('/projects/:id/tasks/:taskId', requireProjectAccess, projectWorkflowController.updateTask);
 router.post('/projects/:id/tasks/:taskId/comments', requireProjectAccess, projectWorkflowController.addTaskComment);
 router.delete('/projects/:id/tasks/:taskId', requireProjectAccess, projectWorkflowController.deleteTask);
+
+router.get('/projects/:id/standup', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.getSession);
+router.put('/projects/:id/standup/:sessionId', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.updateSession);
+router.post('/projects/:id/standup/:sessionId/decisions', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.addDecision);
+router.delete('/projects/:id/standup/decisions/:decisionId', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.deleteDecision);
+router.post('/projects/:id/standup/:sessionId/parking', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.addParking);
+router.patch('/projects/:id/standup/parking/:parkingId', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.resolveParking);
+router.get('/projects/:id/standup/email-draft', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.emailDraft);
+
 router.get('/resource-requests', memberBlocked, projectWorkflowController.listRequests);
 router.post('/resource-requests', memberBlocked, projectWorkflowController.createRequest);
 router.post('/resource-requests/analyze', memberBlocked, projectWorkflowController.analyzeRequest);
@@ -73,6 +83,7 @@ router.get('/lookups/skills', lookupController.skills);
 router.get('/lookups/employment-types', lookupController.employmentTypes);
 
 router.get('/dashboard', memberBlocked, dashboardController.get);
+router.get('/dashboard/morning-briefing', memberBlocked, standupController.morningBriefing);
 router.get('/heatmap', memberBlocked, heatmapController.get);
 router.get('/forecast', memberBlocked, forecastController.get);
 router.get('/skill-matrix', memberBlocked, skillMatrixController.get);

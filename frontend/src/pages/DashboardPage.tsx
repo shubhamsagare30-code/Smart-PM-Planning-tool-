@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FolderKanban, Gauge, Activity, CheckCircle2, Clock, AlertTriangle, UserX, Shuffle, Palmtree } from 'lucide-react';
+import { Users, FolderKanban, Gauge, Activity, CheckCircle2, Clock, AlertTriangle, UserX, Shuffle, Palmtree, Sunrise } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, PieChart, Pie, Cell,
@@ -8,16 +8,23 @@ import {
 import { dashboardApi } from '../api';
 import { StatCard } from '../components/StatCard';
 import { MarginBadge } from '../components/MarginGauge';
-import type { DashboardData } from '../types';
+import type { DashboardData, MorningBriefing } from '../types';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
 
   const load = (projectId?: number) => {
     setLoading(true);
-    dashboardApi.get(projectId).then(setData).finally(() => setLoading(false));
+    Promise.all([
+      dashboardApi.get(projectId),
+      dashboardApi.morningBriefing().catch(() => null),
+    ]).then(([dash, brief]) => {
+      setData(dash);
+      setBriefing(brief);
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -78,6 +85,55 @@ export function DashboardPage() {
           <MiniStat icon={<Clock className="h-4 w-4 text-blue-500" />} label="In Progress" value={data.taskSummary.inProgress} />
           <MiniStat icon={<AlertTriangle className="h-4 w-4 text-red-500" />} label="Delayed" value={data.taskSummary.delayed} />
           <MiniStat icon={<FolderKanban className="h-4 w-4 text-gray-400" />} label="Planned" value={data.taskSummary.planned} />
+        </div>
+      )}
+
+      {briefing && (
+        <div className="mb-6 card border-l-4 border-l-amber-400">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
+              <Sunrise className="h-5 w-5 text-amber-500" /> Morning briefing — {briefing.date}
+            </h3>
+            <div className="flex gap-3 text-sm text-gray-500">
+              <span>{briefing.totalDueToday} due today</span>
+              <span className="text-red-600">{briefing.totalOverdue} overdue</span>
+              <span>{briefing.projectsNeedingAttention} need attention</span>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {briefing.items
+              .filter((i) => i.dueTodayCount > 0 || i.overdueCount > 0 || i.blockedCount > 0)
+              .map((item) => (
+                <Link
+                  key={item.projectId}
+                  to={`/projects/${item.projectId}`}
+                  className="rounded-lg border border-gray-100 bg-gray-50 p-3 transition hover:border-brand-300 dark:border-gray-700 dark:bg-gray-800/50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{item.projectName}</span>
+                    {item.standupPrepared ? (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] text-green-700 dark:bg-green-900/30 dark:text-green-400">Standup ready</span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">No standup yet</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex gap-3 text-xs text-gray-500">
+                    {item.dueTodayCount > 0 && <span>{item.dueTodayCount} due today</span>}
+                    {item.overdueCount > 0 && <span className="text-red-600">{item.overdueCount} overdue</span>}
+                    {item.blockedCount > 0 && <span className="text-orange-600">{item.blockedCount} blocked</span>}
+                  </div>
+                  {(item.topDueToday.length > 0 || item.topOverdue.length > 0) && (
+                    <ul className="mt-2 space-y-0.5 text-xs text-gray-600 dark:text-gray-400">
+                      {item.topDueToday.map((t) => <li key={`d-${t}`}>• Due: {t}</li>)}
+                      {item.topOverdue.map((t) => <li key={`o-${t}`} className="text-red-600">• Overdue: {t}</li>)}
+                    </ul>
+                  )}
+                </Link>
+              ))}
+          </div>
+          {briefing.items.every((i) => i.dueTodayCount === 0 && i.overdueCount === 0 && i.blockedCount === 0) && (
+            <p className="text-sm text-gray-500">All clear across your portfolio — no urgent items for today.</p>
+          )}
         </div>
       )}
 

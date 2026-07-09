@@ -245,6 +245,95 @@ export interface DashboardStats {
   taskSummary: { delivered: number; inProgress: number; delayed: number; planned: number; total: number };
   allocationMetrics: AllocationMetrics;
   projects: Array<{ id: number; name: string }>;
+  morningBriefing?: MorningBriefing;
+}
+
+export interface StandupSession {
+  id: number;
+  project_id: number;
+  session_date: string;
+  notes: string;
+  attendees: string;
+  duration_min: number | null;
+  created_by_user_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StandupDecision {
+  id: number;
+  session_id: number;
+  decision: string;
+  action: string | null;
+  owner_name: string | null;
+  due_date: string | null;
+  category: string;
+  created_at: string;
+}
+
+export interface StandupParkingItem {
+  id: number;
+  session_id: number;
+  text: string;
+  resolved: boolean;
+  created_at: string;
+}
+
+export interface StandupTaskBrief {
+  id: number;
+  task_uid?: string;
+  title: string;
+  assignee_name?: string;
+  due_date?: string | null;
+  kanban_column: string;
+  planned_hours: number;
+  status: string;
+}
+
+export interface StandupAgenda {
+  sessionDate: string;
+  sinceDate: string;
+  doneSinceLastStandup: StandupTaskBrief[];
+  dueToday: StandupTaskBrief[];
+  overdue: StandupTaskBrief[];
+  inProgress: StandupTaskBrief[];
+  blocked: StandupTaskBrief[];
+  peopleRound: Array<{ name: string; today: StandupTaskBrief[]; inProgress: StandupTaskBrief[] }>;
+}
+
+export interface StandupSessionData {
+  session: StandupSession;
+  agenda: StandupAgenda;
+  decisions: StandupDecision[];
+  parking: StandupParkingItem[];
+  history: StandupSession[];
+  projectName: string;
+}
+
+export interface MorningBriefingItem {
+  projectId: number;
+  projectName: string;
+  status: string;
+  dueTodayCount: number;
+  overdueCount: number;
+  blockedCount: number;
+  standupPrepared: boolean;
+  topDueToday: string[];
+  topOverdue: string[];
+}
+
+export interface MorningBriefing {
+  date: string;
+  totalDueToday: number;
+  totalOverdue: number;
+  projectsNeedingAttention: number;
+  items: MorningBriefingItem[];
+}
+
+export interface StandupEmailDraft {
+  subject: string;
+  body: string;
+  mailto: string;
 }
 
 export interface HeatmapCell {

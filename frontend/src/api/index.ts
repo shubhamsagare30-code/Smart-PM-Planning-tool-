@@ -1,8 +1,9 @@
 import axios from 'axios';
 import type {
   Allocation, AllocationResult, AuthUser, DashboardData, Department, EmploymentType,
-  ForecastItem, HeatmapCell, Leave, Project, ProjectDashboard, ProjectFinancials,
-  ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry, UserRole,
+  ForecastItem, HeatmapCell, Leave, MorningBriefing, Project, ProjectDashboard, ProjectFinancials,
+  ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry, StandupDecision,
+  StandupEmailDraft, StandupSessionData, UserRole,
 } from '../types';
 import { getStoredToken } from '../auth/token';
 
@@ -113,6 +114,24 @@ export const leavesApi = {
 export const dashboardApi = {
   get: (projectId?: number) =>
     api.get<DashboardData>('/dashboard', { params: projectId ? { project_id: projectId } : {} }).then((r) => r.data),
+  morningBriefing: () => api.get<MorningBriefing>('/dashboard/morning-briefing').then((r) => r.data),
+};
+
+export const standupApi = {
+  getSession: (projectId: number, date?: string) =>
+    api.get<StandupSessionData>(`/projects/${projectId}/standup`, { params: date ? { date } : {} }).then((r) => r.data),
+  updateSession: (projectId: number, sessionId: number, data: { notes?: string; attendees?: string[]; duration_min?: number }) =>
+    api.put(`/projects/${projectId}/standup/${sessionId}`, data).then((r) => r.data),
+  addDecision: (projectId: number, sessionId: number, data: { decision: string; action?: string; owner_name: string; due_date?: string; category?: string }) =>
+    api.post<StandupDecision>(`/projects/${projectId}/standup/${sessionId}/decisions`, data).then((r) => r.data),
+  deleteDecision: (projectId: number, decisionId: number) =>
+    api.delete(`/projects/${projectId}/standup/decisions/${decisionId}`).then((r) => r.data),
+  addParking: (projectId: number, sessionId: number, text: string) =>
+    api.post(`/projects/${projectId}/standup/${sessionId}/parking`, { text }).then((r) => r.data),
+  resolveParking: (projectId: number, parkingId: number, resolved: boolean) =>
+    api.patch(`/projects/${projectId}/standup/parking/${parkingId}`, { resolved }).then((r) => r.data),
+  getEmailDraft: (projectId: number, date?: string) =>
+    api.get<StandupEmailDraft>(`/projects/${projectId}/standup/email-draft`, { params: date ? { date } : {} }).then((r) => r.data),
 };
 
 export const heatmapApi = {
