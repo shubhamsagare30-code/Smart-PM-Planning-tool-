@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Project } from '../types';
 import { AllocationRepository } from '../repositories/allocationRepository';
 import { LeaveRepository } from '../repositories/leaveRepository';
 import { LookupRepository } from '../repositories/lookupRepository';
@@ -17,6 +18,9 @@ import { ProjectTaskRepository } from '../repositories/projectTaskRepository';
 import { ResourceRequestRepository } from '../repositories/resourceRequestRepository';
 import { handleError } from '../utils/errors';
 import { parseId } from '../utils/params';
+import { PROJECT_FINANCIAL_KEYS, omitFinancialFields } from '../utils/financialAccess';
+import { canViewProjectFinancials } from '../utils/permissions';
+import { stripResourcesFinancials } from '../utils/financialAccess';
 import {
   allocationSchema, fullProjectSchema, leaveSchema, marginPreviewSchema,
   projectSchema, projectTaskSchema, resourceRequestSchema, resourceSchema,
@@ -37,6 +41,11 @@ const workflowService = new ProjectWorkflowService();
 const taskRepo = new ProjectTaskRepository();
 const requestRepo = new ResourceRequestRepository();
 
+function stripProjectForUser(project: Project, req: Request): Project {
+  if (!req.user || canViewProjectFinancials(req.user, project.id)) return project;
+  return omitFinancialFields(project as unknown as Record<string, unknown>, PROJECT_FINANCIAL_KEYS) as unknown as Project;
+}
+
 export const resourceController = {
   list(req: Request, res: Response) {
     try {
@@ -47,7 +56,7 @@ export const resourceController = {
         department_id: department_id ? parseInt(department_id as string) : undefined,
         status: status as string,
       });
-      res.json(resources);
+      res.json(req.user ? stripResourcesFinancials(resources, req.user) : resources);
     } catch (e) {
       handleError(e, res);
     }
@@ -57,7 +66,7 @@ export const resourceController = {
     try {
       const resource = resourceRepo.findById(parseId(req.params.id));
       if (!resource) return res.status(404).json({ error: 'Resource not found' });
-      res.json(resource);
+      res.json(req.user ? stripResourcesFinancials([resource], req.user)[0] : resource);
     } catch (e) {
       handleError(e, res);
     }
@@ -99,7 +108,10 @@ export const projectController = {
   list(req: Request, res: Response) {
     try {
       const status = req.query.status as string | undefined;
-      res.json(projectRepo.findAll(status));
+      const projects = req.user
+        ? projectRepo.findAllForUser(req.user.id, req.user.role, status)
+        : projectRepo.findAll(status);
+      res.json(projects.map((p) => stripProjectForUser(p, req)));
     } catch (e) {
       handleError(e, res);
     }
@@ -109,7 +121,7 @@ export const projectController = {
     try {
       const project = projectRepo.findById(parseId(req.params.id));
       if (!project) return res.status(404).json({ error: 'Project not found' });
-      res.json(project);
+      res.json(stripProjectForUser(project, req));
     } catch (e) {
       handleError(e, res);
     }
@@ -121,8 +133,12 @@ export const projectController = {
       if (data.start_date > data.end_date) {
         return res.status(400).json({ error: 'Start date must be before end date' });
       }
-      const project = projectRepo.create(data);
-      res.status(201).json(project);
+      const payload = {
+        ...data,
+        owner_user_id: req.user?.role === 'pm' ? req.user.id : req.user?.id ?? null,
+      };
+      const project = projectRepo.create(payload as Record<string, unknown>);
+      res.status(201).json(stripProjectForUser(project, req));
     } catch (e) {
       handleError(e, res);
     }
@@ -133,7 +149,7 @@ export const projectController = {
       const data = projectSchema.partial().parse(req.body);
       const project = projectRepo.update(parseId(req.params.id), data);
       if (!project) return res.status(404).json({ error: 'Project not found' });
-      res.json(project);
+      res.json(stripProjectForUser(project, req));
     } catch (e) {
       handleError(e, res);
     }
@@ -393,7 +409,16 @@ export const reportController = {
 export const projectWorkflowController = {
   getDashboard(req: Request, res: Response) {
     try {
-      res.json(workflowService.getDashboard(parseId(req.params.id)));
+      const projectId = parseId(req.params.id);
+      const dash = workflowService.getDashboard(projectId);
+      if (req.user && !canViewProjectFinancials(req.user, projectId)) {
+        const { financials, cost, suggestions, ...safe } = dash;
+        return res.json({
+          ...safe,
+          suggestions: suggestions.filter((s) => s.type !== 'margin' && s.type !== 'cost'),
+        });
+      }
+      res.json(dash);
     } catch (e) {
       handleError(e, res);
     }

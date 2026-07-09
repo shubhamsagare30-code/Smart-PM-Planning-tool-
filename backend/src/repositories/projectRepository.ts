@@ -3,10 +3,10 @@ import { Project } from '../types';
 
 const PROJECT_FIELDS = [
   'name', 'client_name', 'start_date', 'end_date', 'status', 'budget', 'description',
-  'duration_days', 'project_type', 'monthly_rate', 'software_cost', 'hardware_cost',
+  'duration_days', 'project_type', 'monthly_rate', 'hourly_rate', 'software_cost', 'hardware_cost',
   'desk_cost', 'office_cost', 'planned_cost', 'actual_cost', 'documentation_links',
   'documentation_files', 'external_board_url', 'board_type', 'planned_completion_percent',
-  'actual_completion_percent', 'deliverables_planned', 'deliverables_actual',
+  'actual_completion_percent', 'deliverables_planned', 'deliverables_actual', 'owner_user_id',
 ];
 
 export class ProjectRepository {
@@ -19,6 +19,26 @@ export class ProjectRepository {
     return getDb()
       .prepare("SELECT * FROM projects WHERE status != 'archived' ORDER BY name")
       .all() as unknown as Project[];
+  }
+
+  findAllForUser(userId: number, role: string, status?: string): Project[] {
+    if (role === 'admin' || role === 'director') return this.findAll(status);
+    if (role === 'pm') {
+      const db = getDb();
+      const sql = status
+        ? 'SELECT * FROM projects WHERE status = ? AND owner_user_id = ? ORDER BY name'
+        : "SELECT * FROM projects WHERE status != 'archived' AND owner_user_id = ? ORDER BY name";
+      return db.prepare(sql).all(...(status ? [status, userId] : [userId])) as unknown as Project[];
+    }
+    const db = getDb();
+    const sql = status
+      ? `SELECT p.* FROM projects p
+         JOIN project_members pm ON pm.project_id = p.id
+         WHERE p.status = ? AND pm.user_id = ? ORDER BY p.name`
+      : `SELECT p.* FROM projects p
+         JOIN project_members pm ON pm.project_id = p.id
+         WHERE p.status != 'archived' AND pm.user_id = ? ORDER BY p.name`;
+    return db.prepare(sql).all(...(status ? [status, userId] : [userId])) as unknown as Project[];
   }
 
   findById(id: number): Project | null {

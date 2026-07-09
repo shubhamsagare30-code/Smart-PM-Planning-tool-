@@ -10,6 +10,17 @@ export type KanbanColumn =
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type MarginStatus = 'red' | 'yellow' | 'green';
 export type LeaveType = 'vacation' | 'sick_leave' | 'holiday' | 'training';
+export type UserRole = 'admin' | 'director' | 'pm' | 'member';
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRole;
+  resource_id: number | null;
+  is_active: boolean;
+  must_change_password: boolean;
+}
 
 export interface TaskComment {
   id: string;
@@ -50,6 +61,7 @@ export interface Project {
   duration_days: number | null;
   project_type: ProjectType;
   monthly_rate: number;
+  hourly_rate?: number;
   software_cost: number;
   hardware_cost: number;
   desk_cost: number;

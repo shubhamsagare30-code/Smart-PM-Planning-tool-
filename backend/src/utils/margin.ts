@@ -31,11 +31,23 @@ export function getMarginStatus(margin: number): MarginStatus {
   return 'green';
 }
 
-export function calculateRevenue(project: Pick<Project, 'budget' | 'project_type' | 'monthly_rate' | 'duration_days' | 'start_date' | 'end_date'>): number {
+export function calculateRevenue(
+  project: Pick<Project, 'budget' | 'project_type' | 'monthly_rate' | 'hourly_rate' | 'duration_days' | 'start_date' | 'end_date'>,
+  timeLogs: TimeLog[] = [],
+  useActual = false
+): number {
   const durationDays = project.duration_days || workingDaysInRange(project.start_date, project.end_date);
   if (project.project_type === 'monthly') {
     const months = Math.max(durationDays / 22, 1);
     return Math.round((project.monthly_rate || 0) * months);
+  }
+  if (project.project_type === 'time_and_materials') {
+    const rate = project.hourly_rate || 0;
+    if (useActual && timeLogs.length > 0 && rate > 0) {
+      const totalHours = timeLogs.reduce((s, t) => s + t.hours, 0);
+      return Math.round(totalHours * rate * 100) / 100;
+    }
+    return project.budget;
   }
   return project.budget;
 }
@@ -79,7 +91,7 @@ export function calculateProjectFinancials(
   useActual = false
 ): ProjectFinancials {
   const durationDays = project.duration_days || workingDaysInRange(project.start_date, project.end_date);
-  const revenue = calculateRevenue(project);
+  const revenue = calculateRevenue(project, timeLogs, useActual);
 
   const allocInputs: AllocationCostInput[] = allocations.map((a) => ({
     resource_id: a.resource_id,
@@ -133,6 +145,7 @@ export function previewFinancials(
     budget: project.budget,
     project_type: project.project_type || 'fixed_cost',
     monthly_rate: project.monthly_rate || 0,
+    hourly_rate: project.hourly_rate || 0,
     duration_days: durationDays,
     start_date: project.start_date,
     end_date: project.end_date,

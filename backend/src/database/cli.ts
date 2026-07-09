@@ -22,8 +22,12 @@ async function main() {
   } else if (cmd === 'seed-tasks') {
     const { seedAllProjectTasks } = await import('./task-seed');
     seedAllProjectTasks();
+  } else if (cmd === 'seed-auth') {
+    runMigrations();
+    const { seedAuthUsers } = await import('./seed-auth');
+    seedAuthUsers();
   } else {
-    console.error('Usage: tsx src/database/cli.ts <migrate|seed|seed-workflow|seed-demo|seed-tasks>');
+    console.error('Usage: tsx src/database/cli.ts <migrate|seed|seed-workflow|seed-demo|seed-tasks|seed-auth>');
     process.exit(1);
   }
 }

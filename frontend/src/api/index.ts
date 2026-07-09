@@ -1,11 +1,47 @@
 import axios from 'axios';
 import type {
-  Allocation, AllocationResult, DashboardData, Department, EmploymentType,
+  Allocation, AllocationResult, AuthUser, DashboardData, Department, EmploymentType,
   ForecastItem, HeatmapCell, Leave, Project, ProjectDashboard, ProjectFinancials,
-  ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry,
+  ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry, UserRole,
 } from '../types';
+import { getStoredToken } from '../auth/token';
 
-const api = axios.create({ baseURL: '/api' });
+const baseURL = import.meta.env.VITE_API_URL || '/api';
+
+const api = axios.create({ baseURL });
+
+api.interceptors.request.use((config) => {
+  const token = getStoredToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401 && !err.config?.url?.includes('/auth/login')) {
+      localStorage.removeItem('smart_pm_token');
+      if (window.location.pathname !== '/login') window.location.href = '/login';
+    }
+    return Promise.reject(err);
+  }
+);
+
+export const authApi = {
+  login: (email: string, password: string) =>
+    api.post<{ token: string; user: AuthUser }>('/auth/login', { email, password }).then((r) => r.data),
+  me: () => api.get<AuthUser>('/auth/me').then((r) => r.data),
+};
+
+export const adminApi = {
+  listUsers: () => api.get<AuthUser[]>('/admin/users').then((r) => r.data),
+  createUser: (data: { email: string; password: string; name: string; role: UserRole; resource_id?: number }) =>
+    api.post<AuthUser>('/admin/users', data).then((r) => r.data),
+  updateUser: (id: number, data: Partial<{ name: string; role: UserRole; is_active: boolean; password: string }>) =>
+    api.put<AuthUser>(`/admin/users/${id}`, data).then((r) => r.data),
+  assignProject: (userId: number, projectId: number, memberRole: 'pm' | 'member' = 'member') =>
+    api.post(`/admin/users/${userId}/projects`, { project_id: projectId, member_role: memberRole }).then((r) => r.data),
+};
 
 export const lookupsApi = {
   departments: () => api.get<Department[]>('/lookups/departments').then((r) => r.data),

@@ -1,0 +1,17 @@
+# Render deployment — Smart PM Tool v3.1.0
+# Dashboard: https://dashboard.render.com
+
+services:
+  - type: web
+    name: smart-pm-planning-tool
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://smart-pm-planning-tool-wjjt.vercel.app
