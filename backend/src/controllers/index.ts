@@ -21,6 +21,7 @@ import { parseId } from '../utils/params';
 import { PROJECT_FINANCIAL_KEYS, omitFinancialFields } from '../utils/financialAccess';
 import { canViewProjectFinancials } from '../utils/permissions';
 import { stripResourcesFinancials } from '../utils/financialAccess';
+import { getCurrentUtilizationForResource } from '../utils/capacity';
 import {
   allocationSchema, fullProjectSchema, leaveSchema, marginPreviewSchema,
   projectSchema, projectTaskSchema, resourceRequestSchema, resourceSchema,
@@ -46,6 +47,18 @@ function stripProjectForUser(project: Project, req: Request): Project {
   return omitFinancialFields(project as unknown as Record<string, unknown>, PROJECT_FINANCIAL_KEYS) as unknown as Project;
 }
 
+function enrichResourceCapacity<T extends { id: number; status: string }>(resource: T) {
+  if (resource.status !== 'active') {
+    return { ...resource, booked_percent: 0, available_percent: 0 };
+  }
+  const booked = getCurrentUtilizationForResource(resource as Parameters<typeof getCurrentUtilizationForResource>[0]);
+  return {
+    ...resource,
+    booked_percent: booked,
+    available_percent: Math.round((100 - Math.min(booked, 100)) * 10) / 10,
+  };
+}
+
 export const resourceController = {
   list(req: Request, res: Response) {
     try {
@@ -56,7 +69,8 @@ export const resourceController = {
         department_id: department_id ? parseInt(department_id as string) : undefined,
         status: status as string,
       });
-      res.json(req.user ? stripResourcesFinancials(resources, req.user) : resources);
+      const enriched = resources.map(enrichResourceCapacity);
+      res.json(req.user ? stripResourcesFinancials(enriched, req.user) : enriched);
     } catch (e) {
       handleError(e, res);
     }
@@ -66,7 +80,8 @@ export const resourceController = {
     try {
       const resource = resourceRepo.findById(parseId(req.params.id));
       if (!resource) return res.status(404).json({ error: 'Resource not found' });
-      res.json(req.user ? stripResourcesFinancials([resource], req.user)[0] : resource);
+      const enriched = enrichResourceCapacity(resource);
+      res.json(req.user ? stripResourcesFinancials([enriched], req.user)[0] : enriched);
     } catch (e) {
       handleError(e, res);
     }

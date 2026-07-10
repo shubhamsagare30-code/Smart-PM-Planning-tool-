@@ -26,8 +26,11 @@ async function main() {
     runMigrations();
     const { seedAuthUsers } = await import('./seed-auth');
     seedAuthUsers();
+  } else if (cmd === 'seed-capacity') {
+    const { seedCapacityDemo } = await import('./seed-capacity');
+    seedCapacityDemo();
   } else {
-    console.error('Usage: tsx src/database/cli.ts <migrate|seed|seed-workflow|seed-demo|seed-tasks|seed-auth>');
+    console.error('Usage: tsx src/database/cli.ts <migrate|seed|seed-workflow|seed-demo|seed-tasks|seed-auth|seed-capacity>');
     process.exit(1);
   }
 }

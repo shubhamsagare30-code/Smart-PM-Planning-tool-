@@ -5,7 +5,7 @@ import { ProjectRepository } from '../repositories/projectRepository';
 import { AllocationRepository } from '../repositories/allocationRepository';
 import { LeaveRepository } from '../repositories/leaveRepository';
 
-const departments = ['Engineering', 'Design', 'QA', 'DevOps', 'Product', 'Data Science'];
+const departments = ['Development', 'QA', 'Design', 'Product', 'DevOps', 'Data Science'];
 const skills = [
   'React', 'TypeScript', 'Node.js', 'Python', 'Java', 'AWS', 'Docker',
   'Kubernetes', 'SQL', 'Figma', 'UI/UX', 'Agile', 'Machine Learning', 'GraphQL', 'Terraform',

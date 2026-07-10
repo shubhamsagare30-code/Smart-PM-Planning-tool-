@@ -47,6 +47,10 @@ export interface Resource {
   joining_date: string;
   status: ResourceStatus;
   skills?: Skill[];
+  /** % of max capacity booked today across all projects */
+  booked_percent?: number;
+  /** % of max capacity still free today */
+  available_percent?: number;
 }
 
 export interface Project {
@@ -242,6 +246,28 @@ export interface AllocationMetrics {
   leaveImpact: Array<{ name: string; utilization: number }>;
 }
 
+export interface DepartmentCapacitySnapshot {
+  department: 'Development' | 'QA' | 'Design' | 'Other';
+  headcount: number;
+  utilizationPercent: number;
+  availablePercent: number;
+  totalCapacityFte: number;
+  allocatedFte: number;
+  availableFte: number;
+}
+
+export interface MonthlyCapacityPoint {
+  month: string;
+  monthKey: string;
+  headcount: number;
+  totalCapacityFte: number;
+  allocatedFte: number;
+  availableFte: number;
+  utilizationPercent: number;
+  availablePercent: number;
+  byDepartment: DepartmentCapacitySnapshot[];
+}
+
 export interface DashboardData {
   totalResources: number;
   activeProjects: number;
@@ -249,7 +275,8 @@ export interface DashboardData {
   utilizationPercent: number;
   resourceUtilization: Array<{ name: string; utilization: number; capacity: number }>;
   projectAllocation: Array<{ name: string; allocated: number; resources: number }>;
-  monthlyCapacity: Array<{ month: string; capacity: number; allocated: number; available: number }>;
+  monthlyCapacity: MonthlyCapacityPoint[];
+  departmentCapacity?: DepartmentCapacitySnapshot[];
   projectHealth?: Array<{ id: number; name: string; margin: number; marginStatus: string; completion: number; timelineStatus: string }>;
   taskSummary?: { delivered: number; inProgress: number; delayed: number; planned: number; total: number };
   allocationMetrics?: AllocationMetrics;

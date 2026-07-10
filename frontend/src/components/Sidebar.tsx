@@ -91,7 +91,7 @@ export function Sidebar({ className = '', mobile, onNavigate }: SidebarProps) {
           Sign out
         </button>
         <div className="px-3 pt-3 text-center text-[11px] leading-relaxed text-gray-400">
-          <p className="mb-1">v3.4.0</p>
+          <p className="mb-1">v3.5.1</p>
           <p>
             Thoughtfully Designed by{' '}
             <a

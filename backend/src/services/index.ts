@@ -8,9 +8,13 @@ import { ProjectRepository } from '../repositories/projectRepository';
 import { ResourceRepository } from '../repositories/resourceRepository';
 import { ForecastItem, HeatmapCell, SkillMatrixEntry } from '../types';
 import {
-  getAvailableCapacityPercent,
+  getDepartmentCapacityToday,
+  getMonthlyCapacityTrend,
+  getOrgAvailableCapacityPercent,
+  getOrgUtilizationPercent,
+} from '../utils/departmentCapacity';
+import {
   getCurrentUtilizationForResource,
-  getOverallUtilization,
   getResourceUtilizationForDate,
   validateAllocationCapacity,
 } from '../utils/capacity';
@@ -57,30 +61,8 @@ export class DashboardService {
       resources: p.resources.size,
     }));
 
-    const months = getNextMonths(6);
-    const monthlyCapacity = months.map((month) => {
-      let totalCapacity = 0;
-      let totalAllocated = 0;
-      const daysInMonth = eachDayInRange(`${month}-01`, `${month}-28`).filter((d) => d.startsWith(month) && isWeekday(d));
-
-      for (const resource of resources) {
-        for (const day of daysInMonth) {
-          const util = getResourceUtilizationForDate(resource.id, day);
-          totalCapacity += util.capacity - util.leaveImpact;
-          totalAllocated += util.allocated;
-        }
-      }
-
-      const avgCapacity = daysInMonth.length > 0 ? totalCapacity / daysInMonth.length : 0;
-      const avgAllocated = daysInMonth.length > 0 ? totalAllocated / daysInMonth.length : 0;
-
-      return {
-        month,
-        capacity: Math.round(avgCapacity),
-        allocated: Math.round(avgAllocated),
-        available: Math.round(Math.max(0, avgCapacity - avgAllocated)),
-      };
-    });
+    const monthlyCapacity = getMonthlyCapacityTrend(resources, 6);
+    const departmentCapacity = getDepartmentCapacityToday(resources);
 
     const allProjects = this.projectRepo.findAll();
     const projectHealth = allProjects.slice(0, 8).map((p) => {
@@ -110,11 +92,12 @@ export class DashboardService {
     return {
       totalResources: resources.length,
       activeProjects: projects.length,
-      availableCapacity: getAvailableCapacityPercent(),
-      utilizationPercent: getOverallUtilization(),
+      availableCapacity: getOrgAvailableCapacityPercent(resources),
+      utilizationPercent: getOrgUtilizationPercent(resources),
       resourceUtilization,
       projectAllocation,
       monthlyCapacity,
+      departmentCapacity,
       projectHealth,
       taskSummary,
       allocationMetrics,

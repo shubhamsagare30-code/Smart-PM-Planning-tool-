@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { Users, FolderKanban, Gauge, Activity, CheckCircle2, Clock, AlertTriangle, UserX, Shuffle, Palmtree, Sunrise } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend, PieChart, Pie, Cell,
+  Legend, PieChart, Pie, Cell,
 } from 'recharts';
 import { dashboardApi } from '../api';
 import { StatCard } from '../components/StatCard';
 import { MarginBadge } from '../components/MarginGauge';
-import type { DashboardData, MorningBriefing } from '../types';
+import type { DashboardData, DepartmentCapacitySnapshot, MorningBriefing } from '../types';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -61,13 +61,47 @@ export function DashboardPage() {
         <StatCard title="Total Resources" value={data.totalResources} icon={<Users className="h-6 w-6" />} />
         <StatCard title="Active Projects" value={data.activeProjects} icon={<FolderKanban className="h-6 w-6" />}
           color="bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" />
-        <StatCard title="Available Capacity" value={`${data.availableCapacity}%`} icon={<Gauge className="h-6 w-6" />}
-          color="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" />
-        <StatCard title="Utilization" value={`${data.utilizationPercent}%`} icon={<Activity className="h-6 w-6" />}
+        <StatCard title="Org Utilization" value={`${data.utilizationPercent}%`} icon={<Activity className="h-6 w-6" />}
           color={data.utilizationPercent > 100 ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
             : data.utilizationPercent >= 80 ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400'
             : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'} />
+        <StatCard
+          title="Bench (FTE)"
+          value={data.departmentCapacity?.reduce((s, d) => s + d.availableFte, 0).toFixed(1) ?? '—'}
+          icon={<Gauge className="h-6 w-6" />}
+          color="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+        />
       </div>
+
+      {data.departmentCapacity && data.departmentCapacity.some((d) => d.headcount > 0) && (
+        <div className="mb-6">
+          <h3 className="mb-3 text-base font-semibold sm:text-lg">Available Capacity by Team</h3>
+          <p className="mb-3 text-xs text-gray-500">
+            FTE = full-time equivalent (1.0 = one person at 100%). Based on today&apos;s allocations and leave.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {data.departmentCapacity.filter((d) => d.headcount > 0).map((d) => (
+              <DeptCapacityCard key={d.department} dept={d} />
+            ))}
+          </div>
+          <div className="mt-4 card">
+            <h4 className="mb-3 text-sm font-medium">Team utilization today</h4>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={data.departmentCapacity.filter((d) => d.headcount > 0)} layout="vertical" margin={{ left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="department" width={88} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(v: number, name: string) => [`${v}%`, name === 'utilizationPercent' ? 'Utilized' : 'Available']}
+                  labelFormatter={(label) => String(label)}
+                />
+                <Bar dataKey="utilizationPercent" stackId="a" fill="#f59e0b" name="Utilized" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="availablePercent" stackId="a" fill="#10b981" name="Available" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {metrics && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -235,26 +269,66 @@ export function DashboardPage() {
         )}
 
         <div className="card lg:col-span-2">
-          <h3 className="mb-4 text-base font-semibold sm:text-lg">Monthly Capacity Trend</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data.monthlyCapacity}>
+          <h3 className="mb-1 text-base font-semibold sm:text-lg">Monthly Capacity Trend</h3>
+          <p className="mb-4 text-xs text-gray-500">Average daily FTE across weekdays (excludes weekends). Allocated vs bench by month.</p>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data.monthlyCapacity}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} label={{ value: 'FTE', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = payload[0]?.payload as typeof data.monthlyCapacity[0];
+                  return (
+                    <div className="rounded-lg border bg-white p-2 text-xs shadow dark:border-gray-700 dark:bg-gray-900">
+                      <p className="font-semibold">{label}</p>
+                      <p>Capacity: {row.totalCapacityFte} FTE</p>
+                      <p>Allocated: {row.allocatedFte} FTE ({row.utilizationPercent}%)</p>
+                      <p className="text-green-600">Available: {row.availableFte} FTE ({row.availablePercent}%)</p>
+                    </div>
+                  );
+                }}
+              />
               <Legend />
-              <Line type="monotone" dataKey="capacity" stroke="#3b82f6" name="Capacity" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="allocated" stroke="#f59e0b" name="Allocated" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="available" stroke="#10b981" name="Available" strokeWidth={2} dot={false} />
-            </LineChart>
+              <Bar dataKey="allocatedFte" stackId="fte" fill="#f59e0b" name="Allocated FTE" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="availableFte" stackId="fte" fill="#10b981" name="Available FTE" radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
+          {data.monthlyCapacity[0]?.byDepartment && (
+            <div className="mt-4 border-t pt-4 dark:border-gray-700">
+              <h4 className="mb-2 text-sm font-medium">This month by team (available FTE)</h4>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={data.monthlyCapacity[0].byDepartment.filter((d) => d.headcount > 0)}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="department" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(v: number) => [`${v} FTE`, 'Available']} />
+                  <Bar dataKey="availableFte" fill="#3b82f6" name="Available FTE" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function MiniStat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: number; hint?: string }) {
+function DeptCapacityCard({ dept }: { dept: DepartmentCapacitySnapshot }) {
+  const tight = dept.availablePercent < 15;
+  const moderate = dept.availablePercent < 35;
+  return (
+    <div className={`rounded-xl border p-4 ${tight ? 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-900/10' : moderate ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-900/10' : 'border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-900/10'}`}>
+      <p className="text-sm font-semibold">{dept.department}</p>
+      <p className="mt-1 text-2xl font-bold">{dept.availableFte} <span className="text-sm font-normal text-gray-500">FTE free</span></p>
+      <p className="text-xs text-gray-500">{dept.availablePercent}% available · {dept.utilizationPercent}% utilized</p>
+      <p className="mt-1 text-[10px] text-gray-400">{dept.headcount} people · {dept.allocatedFte}/{dept.totalCapacityFte} FTE allocated</p>
+    </div>
+  );
+}
+
+function MiniStat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: number | string; hint?: string }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center gap-2 text-xs text-gray-500">{icon}{label}</div>

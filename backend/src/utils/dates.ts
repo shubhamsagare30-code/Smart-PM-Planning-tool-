@@ -85,3 +85,11 @@ export function getNextMonths(count: number): string[] {
   }
   return months;
 }
+
+/** All Mon–Fri dates in a calendar month (YYYY-MM). */
+export function getWeekdaysInMonth(monthKey: string): string[] {
+  const [y, m] = monthKey.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+  return eachDayInRange(`${monthKey}-01`, end).filter(isWeekday);
+}
