@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, Calendar, Clock, DollarSign, ExternalLink,
-  Lightbulb, Link2, Plus, Target, TrendingUp, Users,
+  Lightbulb, Link2, Target, TrendingUp, Users,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -11,8 +11,8 @@ import {
 import { projectsApi, resourceRequestsApi, resourcesApi } from '../api';
 import { Badge } from '../components/Badge';
 import { DailyStandupTab } from '../components/DailyStandupTab';
-import { KanbanBoard } from '../components/KanbanBoard';
 import { MarginBadge, MarginGauge } from '../components/MarginGauge';
+import { ProjectBoard } from '../components/ProjectBoard';
 import { TaskModal } from '../components/TaskModal';
 import { useAuth } from '../context/AuthContext';
 import type { ProjectDashboard, ProjectTask, RequestImpact, Resource } from '../types';
@@ -37,12 +37,6 @@ export function ProjectDetailPage() {
 
   useEffect(() => { load(); }, [id]);
   useEffect(() => { resourcesApi.list({ status: 'active' }).then(setResources); }, []);
-
-  const handleMoveTask = async (taskId: number, column: string) => {
-    if (!id) return;
-    await projectsApi.updateTask(+id, taskId, { kanban_column: column as ProjectDashboard['tasks'][0]['kanban_column'] });
-    load();
-  };
 
   const analyzeRequest = async (req: ProjectDashboard['resourceRequests'][0]) => {
     const result = await resourceRequestsApi.analyze({
@@ -228,6 +222,53 @@ export function ProjectDetailPage() {
             )}
           </div>
 
+          {dash.sprintSummary && (dash.sprintSummary.total > 0 || dash.sprintSummary.active) && (
+            <div className="card">
+              <h3 className="mb-4 font-semibold">Sprint Performance</h3>
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg bg-green-50 p-3 text-center dark:bg-green-900/20">
+                  <p className="text-2xl font-bold text-green-600">{dash.sprintSummary.successful}</p>
+                  <p className="text-xs text-gray-500">Successful</p>
+                </div>
+                <div className="rounded-lg bg-yellow-50 p-3 text-center dark:bg-yellow-900/20">
+                  <p className="text-2xl font-bold text-yellow-600">{dash.sprintSummary.partial}</p>
+                  <p className="text-xs text-gray-500">Partial</p>
+                </div>
+                <div className="rounded-lg bg-red-50 p-3 text-center dark:bg-red-900/20">
+                  <p className="text-2xl font-bold text-red-600">{dash.sprintSummary.failed}</p>
+                  <p className="text-xs text-gray-500">Not completed</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 text-center dark:bg-gray-800">
+                  <p className="text-2xl font-bold">{dash.sprintSummary.total}</p>
+                  <p className="text-xs text-gray-500">Closed sprints</p>
+                </div>
+              </div>
+              {dash.sprintSummary.sprints.length > 0 && (
+                <>
+                  <h4 className="mb-2 text-sm font-medium text-gray-600">Sprint progress</h4>
+                  <ResponsiveContainer width="100%" height={Math.max(180, dash.sprintSummary.sprints.length * 36)}>
+                    <BarChart data={dash.sprintSummary.sprints.slice().reverse()} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 10 }} />
+                      <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(v: number, _n, p) => [`${v}% (${(p.payload as { completedTasks: number }).completedTasks}/${(p.payload as { totalTasks: number }).totalTasks} tasks)`, 'Progress']} />
+                      <Bar dataKey="progressPercent" name="Progress" radius={[0, 4, 4, 0]}>
+                        {dash.sprintSummary.sprints.slice().reverse().map((s, i) => (
+                          <Cell key={i} fill={s.outcome === 'success' ? '#10b981' : s.outcome === 'partial' ? '#f59e0b' : s.outcome === 'failed' ? '#ef4444' : s.status === 'active' ? '#3b82f6' : '#9ca3af'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  {dash.sprintSummary.active && (
+                    <p className="mt-2 text-sm text-brand-600">
+                      Active: {dash.sprintSummary.active.name} — {dash.sprintSummary.active.remainingWorkingDays ?? 0} working days left
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* Financial breakdown */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="card">
@@ -304,18 +345,24 @@ export function ProjectDetailPage() {
       {tab === 'board' && (
         <div className="card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">Project Board</h3>
-            <div className="flex items-center gap-2">
-              <button onClick={openAddTask} className="btn-primary text-sm"><Plus className="h-4 w-4" /> Add Task</button>
-              {project.board_type !== 'internal' && project.external_board_url && (
-                <a href={project.external_board_url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm">
-                  <ExternalLink className="h-4 w-4" /> Open in {project.board_type.charAt(0).toUpperCase() + project.board_type.slice(1)}
-                </a>
-              )}
+            <div>
+              <h3 className="font-semibold">Project Board</h3>
+              <p className="text-xs text-gray-500">Product Backlog → Ready for Dev → Sprint execution</p>
             </div>
+            {project.board_type !== 'internal' && project.external_board_url && (
+              <a href={project.external_board_url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm">
+                <ExternalLink className="h-4 w-4" /> Open in {project.board_type.charAt(0).toUpperCase() + project.board_type.slice(1)}
+              </a>
+            )}
           </div>
           {project.board_type === 'internal' ? (
-            <KanbanBoard tasks={dash.tasks} onMoveTask={handleMoveTask} onTaskClick={openEditTask} />
+            <ProjectBoard
+              projectId={+id!}
+              tasks={dash.tasks}
+              onRefresh={load}
+              onTaskClick={openEditTask}
+              onAddTask={openAddTask}
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
               <ExternalLink className="mx-auto mb-3 h-8 w-8 text-gray-400" />
@@ -422,7 +469,9 @@ export function ProjectDetailPage() {
       {tab === 'standup' && id && (
         <DailyStandupTab
           projectId={+id}
-          teamNames={[...new Set(dash.allocations.map((a) => a.resource_name).filter((n): n is string => !!n))]}
+          teamMembers={dash.allocations
+            .filter((a) => a.resource_name)
+            .map((a) => ({ id: a.resource_id, name: a.resource_name! }))}
         />
       )}
 

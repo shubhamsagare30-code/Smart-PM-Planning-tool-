@@ -15,6 +15,7 @@ import {
 import { adminUserController, authController } from '../controllers/authController';
 import { authenticate, requireProjectAccess, requireRoles } from '../middleware/auth';
 import { standupController } from '../controllers/standupController';
+import { sprintController } from '../controllers/sprintController';
 
 const router = Router();
 
@@ -60,6 +61,14 @@ router.delete('/projects/:id/standup/decisions/:decisionId', requireProjectAcces
 router.post('/projects/:id/standup/:sessionId/parking', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.addParking);
 router.patch('/projects/:id/standup/parking/:parkingId', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.resolveParking);
 router.get('/projects/:id/standup/email-draft', requireProjectAccess, requireRoles('admin', 'director', 'pm'), standupController.emailDraft);
+
+router.get('/projects/:id/sprints', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.list);
+router.post('/projects/:id/sprints', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.create);
+router.patch('/projects/:id/sprints/:sprintId/activate', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.activate);
+router.patch('/projects/:id/sprints/:sprintId/close', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.close);
+router.get('/projects/:id/sprints/:sprintId/tasks', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.sprintTasks);
+router.post('/projects/:id/sprints/:sprintId/tasks', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.assignTask);
+router.delete('/projects/:id/sprints/tasks/:taskId', requireProjectAccess, requireRoles('admin', 'director', 'pm'), sprintController.removeTask);
 
 router.get('/resource-requests', memberBlocked, projectWorkflowController.listRequests);
 router.post('/resource-requests', memberBlocked, projectWorkflowController.createRequest);

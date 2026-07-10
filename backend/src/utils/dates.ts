@@ -55,6 +55,27 @@ export function getWeekKey(dateStr: string): string {
   return formatDate(monday);
 }
 
+export function remainingWorkingDays(fromDate: string, endDate: string): number {
+  const today = fromDate;
+  if (today > endDate) return 0;
+  return workingDaysInRange(today, endDate);
+}
+
+/** End date after N weekdays starting on startDate (inclusive). */
+export function endDateFromWorkingDays(startDate: string, workingDays: number): string {
+  let current = parseDate(startDate);
+  let counted = 0;
+  while (counted < workingDays) {
+    if (isWeekday(formatDate(current))) counted++;
+    if (counted < workingDays) current = addDays(current, 1);
+  }
+  return formatDate(current);
+}
+
+export function inferSprintWeeks(workingDays: number): 1 | 2 {
+  return workingDays >= 8 ? 2 : 1;
+}
+
 export function getNextMonths(count: number): string[] {
   const months: string[] = [];
   const now = new Date();

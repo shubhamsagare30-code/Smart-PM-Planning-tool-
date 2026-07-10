@@ -96,6 +96,7 @@ export class ProjectTaskRepository {
       links: string;
       attachments: string;
       comments: string;
+      sprint_id: number | null;
     }>
   ): ProjectTask | null {
     const fields: string[] = [];
@@ -103,7 +104,7 @@ export class ProjectTaskRepository {
     const allowed = [
       'title', 'description', 'status', 'assignee_id', 'planned_start', 'planned_end',
       'actual_start', 'actual_end', 'planned_hours', 'actual_hours', 'kanban_column', 'sort_order',
-      'due_date', 'reminder_date', 'tags', 'links', 'attachments', 'comments',
+      'due_date', 'reminder_date', 'tags', 'links', 'attachments', 'comments', 'sprint_id',
     ];
 
     for (const key of allowed) {

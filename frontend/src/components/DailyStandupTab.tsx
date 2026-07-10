@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AlertTriangle, Calendar, CheckCircle2, ClipboardList, Clock, Mail, Plus, Trash2, Users,
+  AlertTriangle, Calendar, CheckCircle2, ClipboardList, Clock, Mail, ParkingCircle, Plus, Trash2, Users,
 } from 'lucide-react';
 import { standupApi } from '../api';
 import { useAuth } from '../context/AuthContext';
-import type { StandupDecision, StandupSessionData } from '../types';
+import type { StandupDecision, StandupSessionData, StandupTaskBrief } from '../types';
+
+interface TeamMember {
+  id: number;
+  name: string;
+}
 
 interface DailyStandupTabProps {
   projectId: number;
-  teamNames: string[];
+  teamMembers: TeamMember[];
 }
 
-function TaskList({ items, empty }: { items: StandupSessionData['agenda']['dueToday']; empty: string }) {
+function TaskList({ items, empty }: { items: StandupTaskBrief[]; empty: string }) {
   if (items.length === 0) return <p className="text-sm text-gray-400">{empty}</p>;
   return (
     <ul className="space-y-2">
@@ -25,7 +30,7 @@ function TaskList({ items, empty }: { items: StandupSessionData['agenda']['dueTo
   );
 }
 
-export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) {
+export function DailyStandupTab({ projectId, teamMembers }: DailyStandupTabProps) {
   const { user } = useAuth();
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [data, setData] = useState<StandupSessionData | null>(null);
@@ -34,8 +39,12 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
   const [attendees, setAttendees] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const [decisionForm, setDecisionForm] = useState({ decision: '', action: '', owner_name: '', due_date: '', category: 'general' });
+  const [decisionForm, setDecisionForm] = useState({
+    decision: '', action: '', owner_name: '', action_owner_name: '', due_date: '', category: 'general',
+  });
   const [parkingText, setParkingText] = useState('');
+
+  const teamNames = teamMembers.map((m) => m.name);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -62,15 +71,33 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
 
   const addDecision = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data || !decisionForm.decision.trim() || !decisionForm.owner_name.trim()) return;
-    await standupApi.addDecision(projectId, data.session.id, decisionForm);
-    setDecisionForm({ decision: '', action: '', owner_name: '', due_date: '', category: 'general' });
+    if (!data || !decisionForm.decision.trim() || !decisionForm.owner_name) return;
+    const actionOwner = decisionForm.action_owner_name || decisionForm.owner_name;
+    const actionText = decisionForm.action.trim()
+      ? `${decisionForm.action} (Owner: ${actionOwner})`
+      : undefined;
+    await standupApi.addDecision(projectId, data.session.id, {
+      decision: decisionForm.decision,
+      action: actionText,
+      owner_name: decisionForm.owner_name,
+      due_date: decisionForm.due_date || undefined,
+      category: decisionForm.category,
+    });
+    setDecisionForm({
+      decision: '', action: '', owner_name: '', action_owner_name: '', due_date: '', category: 'general',
+    });
     load();
   };
 
-  const addParking = async () => {
+  const parkTask = async (taskId: number) => {
+    if (!data) return;
+    await standupApi.addParking(projectId, data.session.id, { task_id: taskId });
+    load();
+  };
+
+  const addParkingNote = async () => {
     if (!data || !parkingText.trim()) return;
-    await standupApi.addParking(projectId, data.session.id, parkingText.trim());
+    await standupApi.addParking(projectId, data.session.id, { text: parkingText.trim() });
     setParkingText('');
     load();
   };
@@ -83,11 +110,11 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
   if (loading) return <div className="text-gray-500">Loading standup...</div>;
   if (!data) return <div className="text-red-500">Could not load standup</div>;
 
-  const { agenda, decisions, parking } = data;
+  const { agenda, decisions, parking, activeSprint, sprintTasks } = data;
+  const parkedTaskIds = new Set(parking.filter((p) => p.task_id).map((p) => p.task_id!));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Calendar className="h-5 w-5 text-brand-600" />
@@ -104,7 +131,6 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
         </div>
       </div>
 
-      {/* Agenda grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="card">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-green-700">
@@ -142,7 +168,6 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
         </section>
       </div>
 
-      {/* People round */}
       {agenda.peopleRound.length > 0 && (
         <section className="card">
           <h3 className="mb-3 flex items-center gap-2 font-semibold">
@@ -171,7 +196,6 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
         </section>
       )}
 
-      {/* Decisions */}
       <section className="card">
         <h3 className="mb-3 font-semibold">Decisions & actions</h3>
         {decisions.length > 0 && (
@@ -180,7 +204,9 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
               <li key={d.id} className="flex items-start justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm dark:bg-brand-900/20">
                 <div>
                   <p className="font-medium">{d.decision}</p>
-                  <p className="text-xs text-gray-500">Action: {d.action || '—'} · Owner: {d.owner_name} · Due: {d.due_date || '—'}</p>
+                  <p className="text-xs text-gray-500">
+                    Action: {d.action || '—'} · Owner: {d.owner_name} · Due: {d.due_date || '—'}
+                  </p>
                 </div>
                 <button type="button" onClick={() => standupApi.deleteDecision(projectId, d.id).then(load)} className="text-red-500">
                   <Trash2 className="h-4 w-4" />
@@ -189,41 +215,115 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
             ))}
           </ul>
         )}
-        <form onSubmit={addDecision} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <input className="input sm:col-span-2" placeholder="Decision *" required value={decisionForm.decision} onChange={(e) => setDecisionForm({ ...decisionForm, decision: e.target.value })} />
-          <input className="input" placeholder="Action item" value={decisionForm.action} onChange={(e) => setDecisionForm({ ...decisionForm, action: e.target.value })} />
-          <input className="input" placeholder="Owner *" required value={decisionForm.owner_name} onChange={(e) => setDecisionForm({ ...decisionForm, owner_name: e.target.value })} />
-          <input className="input" type="date" value={decisionForm.due_date} onChange={(e) => setDecisionForm({ ...decisionForm, due_date: e.target.value })} />
-          <select className="input" value={decisionForm.category} onChange={(e) => setDecisionForm({ ...decisionForm, category: e.target.value })}>
-            <option value="general">General</option>
-            <option value="scope">Scope</option>
-            <option value="resource">Resource</option>
-            <option value="timeline">Timeline</option>
-            <option value="technical">Technical</option>
-            <option value="client">Client</option>
-          </select>
-          <button type="submit" className="btn-primary text-sm"><Plus className="h-4 w-4" /> Add decision</button>
+        <form onSubmit={addDecision} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Decision *</label>
+            <input className="input" required placeholder="What was decided?" value={decisionForm.decision}
+              onChange={(e) => setDecisionForm({ ...decisionForm, decision: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Decision owner *</label>
+            <select className="input" required value={decisionForm.owner_name}
+              onChange={(e) => setDecisionForm({ ...decisionForm, owner_name: e.target.value })}>
+              <option value="">Select team member</option>
+              {teamNames.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Action due date</label>
+            <input className="input" type="date" value={decisionForm.due_date}
+              onChange={(e) => setDecisionForm({ ...decisionForm, due_date: e.target.value })} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Action item</label>
+            <input className="input" placeholder="What needs to happen next?" value={decisionForm.action}
+              onChange={(e) => setDecisionForm({ ...decisionForm, action: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Action owner</label>
+            <select className="input" value={decisionForm.action_owner_name}
+              onChange={(e) => setDecisionForm({ ...decisionForm, action_owner_name: e.target.value })}>
+              <option value="">Same as decision owner</option>
+              {teamNames.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Category</label>
+            <select className="input" value={decisionForm.category}
+              onChange={(e) => setDecisionForm({ ...decisionForm, category: e.target.value })}>
+              <option value="general">General</option>
+              <option value="scope">Scope</option>
+              <option value="resource">Resource</option>
+              <option value="timeline">Timeline</option>
+              <option value="technical">Technical</option>
+              <option value="client">Client</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" className="btn-primary text-sm"><Plus className="h-4 w-4" /> Add decision</button>
+          </div>
         </form>
       </section>
 
-      {/* Parking lot */}
       <section className="card">
-        <h3 className="mb-3 font-semibold">Parking lot</h3>
+        <h3 className="mb-1 flex items-center gap-2 font-semibold">
+          <ParkingCircle className="h-5 w-5 text-gray-500" /> Parking lot
+        </h3>
+        <p className="mb-4 text-sm text-gray-500">
+          Defer topics or sprint tasks that won&apos;t be worked on in the current sprint.
+          Parking a sprint task moves it to <strong>Icebox</strong> and removes it from the sprint.
+        </p>
+
+        {activeSprint && (
+          <div className="mb-4">
+            <h4 className="mb-2 text-sm font-medium">
+              Current sprint: {activeSprint.name} ({activeSprint.start_date} → {activeSprint.end_date})
+            </h4>
+            {sprintTasks.length === 0 ? (
+              <p className="text-sm text-gray-400">No tasks in this sprint yet — add tasks from the Kanban board.</p>
+            ) : (
+              <ul className="space-y-2">
+                {sprintTasks.map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800/50">
+                    <div>
+                      <span className="font-medium">{t.title}</span>
+                      <span className="ml-2 text-xs text-gray-500">{t.assignee_name || 'Unassigned'}</span>
+                    </div>
+                    {parkedTaskIds.has(t.id) ? (
+                      <span className="text-xs text-gray-400">Parked</span>
+                    ) : (
+                      <button type="button" onClick={() => parkTask(t.id)} className="btn-secondary text-xs">
+                        Park task
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {!activeSprint && (
+          <p className="mb-4 text-sm text-amber-600">Start a sprint on the Kanban board to see sprint tasks here.</p>
+        )}
+
+        <label className="label">Other topic to defer (not a task)</label>
         <div className="mb-2 flex gap-2">
-          <input className="input flex-1" placeholder="Defer to later..." value={parkingText} onChange={(e) => setParkingText(e.target.value)} />
-          <button type="button" onClick={addParking} className="btn-secondary">Add</button>
+          <input className="input flex-1" placeholder="e.g. Discuss API redesign next week..." value={parkingText}
+            onChange={(e) => setParkingText(e.target.value)} />
+          <button type="button" onClick={addParkingNote} className="btn-secondary">Add</button>
         </div>
         <ul className="space-y-1 text-sm">
           {parking.filter((p) => !p.resolved).map((p) => (
             <li key={p.id} className="flex justify-between rounded bg-gray-50 px-2 py-1 dark:bg-gray-800">
               <span>{p.text}</span>
-              <button type="button" className="text-xs text-brand-600" onClick={() => standupApi.resolveParking(projectId, p.id, true).then(load)}>Resolve</button>
+              <button type="button" className="text-xs text-brand-600"
+                onClick={() => standupApi.resolveParking(projectId, p.id, true).then(load)}>Resolve</button>
             </li>
           ))}
         </ul>
       </section>
 
-      {/* Notes & attendees */}
       <section className="card">
         <h3 className="mb-3 font-semibold">Standup notes</h3>
         <div className="mb-3">
@@ -239,11 +339,11 @@ export function DailyStandupTab({ projectId, teamNames }: DailyStandupTabProps) 
             ))}
           </div>
         </div>
-        <textarea className="input min-h-[100px]" placeholder="Notes from today's call..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <textarea className="input min-h-[100px]" placeholder="Notes from today's call..." value={notes}
+          onChange={(e) => setNotes(e.target.value)} />
         <p className="mt-2 text-xs text-gray-400">Facilitator: {user?.name}</p>
       </section>
 
-      {/* History */}
       {data.history.length > 1 && (
         <section className="card">
           <h3 className="mb-2 font-semibold">Recent standups</h3>

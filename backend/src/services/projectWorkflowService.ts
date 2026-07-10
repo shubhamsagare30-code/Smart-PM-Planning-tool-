@@ -4,6 +4,7 @@ import { ProjectTaskRepository } from '../repositories/projectTaskRepository';
 import { ResourceRepository } from '../repositories/resourceRepository';
 import { ResourceRequestRepository } from '../repositories/resourceRequestRepository';
 import { TimeLogRepository } from '../repositories/timeLogRepository';
+import { SprintService } from './sprintService';
 import {
   Allocation,
   Project,
@@ -26,6 +27,7 @@ export class ProjectWorkflowService {
   private taskRepo = new ProjectTaskRepository();
   private timeLogRepo = new TimeLogRepository();
   private requestRepo = new ResourceRequestRepository();
+  private sprintService = new SprintService();
 
   getDashboard(projectId: number): ProjectDashboard {
     const project = this.projectRepo.findById(projectId);
@@ -72,6 +74,7 @@ export class ProjectWorkflowService {
       kanban_column: t.kanban_column,
     }));
     const taskSummary = getTaskSummaryForTasks(tasks);
+    const sprintSummary = this.sprintService.getSummary(projectId);
 
     // Sync completion from bucket-based task progress
     const actualCompletion = taskProgress;
@@ -113,6 +116,7 @@ export class ProjectWorkflowService {
       delayedTasks,
       taskSummary,
       taskProgress,
+      sprintSummary,
     };
   }
 

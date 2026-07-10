@@ -1,5 +1,6 @@
 import { ProjectTaskRepository } from '../repositories/projectTaskRepository';
 import { ProjectRepository } from '../repositories/projectRepository';
+import { SprintRepository } from '../repositories/sprintRepository';
 import { StandupRepository } from '../repositories/standupRepository';
 import { ProjectTask, StandupAgenda, StandupDecision, StandupSession } from '../types';
 import { formatDate } from '../utils/dates';
@@ -11,6 +12,7 @@ export class StandupService {
   private standupRepo = new StandupRepository();
   private taskRepo = new ProjectTaskRepository();
   private projectRepo = new ProjectRepository();
+  private sprintRepo = new SprintRepository();
 
   getOrCreateSession(projectId: number, sessionDate: string, userId?: number) {
     let session = this.standupRepo.findSession(projectId, sessionDate);
@@ -26,6 +28,13 @@ export class StandupService {
     const parking = this.standupRepo.listParking(session.id);
     const history = this.standupRepo.listSessions(projectId, 14);
     const project = this.projectRepo.findById(projectId);
+    const activeSprint = this.sprintRepo.findActive(projectId);
+    const sprintTasks = activeSprint
+      ? this.taskRepo.findByProject(projectId)
+          .filter((t) => t.sprint_id === activeSprint.id)
+          .filter((t) => normalizeBucket(t.kanban_column) !== 'pushed_to_production')
+          .map(this.taskBrief)
+      : [];
 
     return {
       session,
@@ -34,6 +43,8 @@ export class StandupService {
       parking,
       history,
       projectName: project?.name ?? `Project ${projectId}`,
+      activeSprint,
+      sprintTasks,
     };
   }
 
@@ -125,7 +136,15 @@ export class StandupService {
     return this.standupRepo.deleteDecision(id);
   }
 
-  addParking(sessionId: number, text: string) {
+  addParking(sessionId: number, text: string, taskId?: number) {
+    if (taskId) {
+      const task = this.taskRepo.findById(taskId);
+      if (task) {
+        this.taskRepo.update(taskId, { kanban_column: 'icebox', sprint_id: null });
+        const label = text.trim() || `Parked: ${task.title}`;
+        return this.standupRepo.addParking(sessionId, label, taskId);
+      }
+    }
     return this.standupRepo.addParking(sessionId, text);
   }
 

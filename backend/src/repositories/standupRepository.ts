@@ -125,10 +125,10 @@ export class StandupRepository {
       .map((r) => this.mapParking(r as Record<string, unknown>));
   }
 
-  addParking(sessionId: number, text: string): StandupParkingItem {
+  addParking(sessionId: number, text: string, taskId?: number | null): StandupParkingItem {
     const result = getDb()
-      .prepare('INSERT INTO standup_parking_items (session_id, text) VALUES (?, ?)')
-      .run(sessionId, text);
+      .prepare('INSERT INTO standup_parking_items (session_id, text, task_id) VALUES (?, ?, ?)')
+      .run(sessionId, text, taskId ?? null);
     const row = getDb()
       .prepare('SELECT * FROM standup_parking_items WHERE id = ?')
       .get(result.lastInsertRowid) as Record<string, unknown>;
@@ -164,6 +164,7 @@ export class StandupRepository {
       id: row.id as number,
       session_id: row.session_id as number,
       text: row.text as string,
+      task_id: (row.task_id as number) ?? null,
       resolved: !!row.resolved,
       created_at: row.created_at as string,
     };

@@ -114,6 +114,44 @@ export interface ProjectTask {
   comments: string;
   created_at: string;
   updated_at: string;
+  sprint_id?: number | null;
+}
+
+export interface ProjectSprint {
+  id: number;
+  project_id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  duration_weeks: 1 | 2;
+  working_days: number | null;
+  outcome: 'success' | 'partial' | 'failed' | null;
+  status: 'planned' | 'active' | 'closed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SprintProgressItem {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: ProjectSprint['status'];
+  outcome: ProjectSprint['outcome'];
+  working_days: number;
+  totalTasks: number;
+  completedTasks: number;
+  progressPercent: number;
+  remainingWorkingDays: number | null;
+}
+
+export interface SprintSummary {
+  total: number;
+  successful: number;
+  partial: number;
+  failed: number;
+  active: SprintProgressItem | null;
+  sprints: SprintProgressItem[];
 }
 
 export interface TimeLog {
@@ -197,6 +235,7 @@ export interface ProjectDashboard {
   delayedTasks?: Array<{ id: number; task_uid: string; title: string; due_date: string | null; kanban_column: string }>;
   taskSummary?: { delivered: number; inProgress: number; delayed: number; planned: number; total: number };
   taskProgress?: number;
+  sprintSummary?: SprintSummary;
 }
 
 export interface Allocation {
@@ -275,6 +314,7 @@ export interface StandupParkingItem {
   id: number;
   session_id: number;
   text: string;
+  task_id: number | null;
   resolved: boolean;
   created_at: string;
 }
@@ -308,6 +348,8 @@ export interface StandupSessionData {
   parking: StandupParkingItem[];
   history: StandupSession[];
   projectName: string;
+  activeSprint: ProjectSprint | null;
+  sprintTasks: StandupTaskBrief[];
 }
 
 export interface MorningBriefingItem {

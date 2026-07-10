@@ -75,8 +75,13 @@ export const standupController = {
   addParking(req: Request, res: Response) {
     try {
       const sessionId = parseId(req.params.sessionId);
-      const { text } = z.object({ text: z.string().min(1) }).parse(req.body);
-      res.status(201).json(standupService.addParking(sessionId, text));
+      const { text, task_id } = z
+        .object({ text: z.string().optional(), task_id: z.number().int().positive().optional() })
+        .parse(req.body);
+      if (!text?.trim() && !task_id) {
+        return res.status(400).json({ error: 'text or task_id required' });
+      }
+      res.status(201).json(standupService.addParking(sessionId, text?.trim() || '', task_id));
     } catch (e) {
       handleError(e, res);
     }

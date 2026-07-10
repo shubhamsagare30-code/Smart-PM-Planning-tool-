@@ -2,8 +2,8 @@ import axios from 'axios';
 import type {
   Allocation, AllocationResult, AuthUser, DashboardData, Department, EmploymentType,
   ForecastItem, HeatmapCell, Leave, MorningBriefing, Project, ProjectDashboard, ProjectFinancials,
-  ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry, StandupDecision,
-  StandupEmailDraft, StandupSessionData, UserRole,
+  ProjectSprint, ProjectTask, RequestImpact, Resource, ResourceRequest, Skill, SkillMatrixEntry, SprintProgressItem,
+  StandupDecision, StandupEmailDraft, StandupSessionData, UserRole,
 } from '../types';
 import { getStoredToken } from '../auth/token';
 
@@ -126,12 +126,27 @@ export const standupApi = {
     api.post<StandupDecision>(`/projects/${projectId}/standup/${sessionId}/decisions`, data).then((r) => r.data),
   deleteDecision: (projectId: number, decisionId: number) =>
     api.delete(`/projects/${projectId}/standup/decisions/${decisionId}`).then((r) => r.data),
-  addParking: (projectId: number, sessionId: number, text: string) =>
-    api.post(`/projects/${projectId}/standup/${sessionId}/parking`, { text }).then((r) => r.data),
+  addParking: (projectId: number, sessionId: number, data: { text?: string; task_id?: number }) =>
+    api.post(`/projects/${projectId}/standup/${sessionId}/parking`, data).then((r) => r.data),
   resolveParking: (projectId: number, parkingId: number, resolved: boolean) =>
     api.patch(`/projects/${projectId}/standup/parking/${parkingId}`, { resolved }).then((r) => r.data),
   getEmailDraft: (projectId: number, date?: string) =>
     api.get<StandupEmailDraft>(`/projects/${projectId}/standup/email-draft`, { params: date ? { date } : {} }).then((r) => r.data),
+};
+
+export const sprintsApi = {
+  list: (projectId: number) =>
+    api.get<{ sprints: SprintProgressItem[]; activeSprint: SprintProgressItem | null }>(`/projects/${projectId}/sprints`).then((r) => r.data),
+  create: (projectId: number, data: { start_date: string; end_date?: string; working_days?: number; name?: string; activate?: boolean }) =>
+    api.post<ProjectSprint>(`/projects/${projectId}/sprints`, data).then((r) => r.data),
+  activate: (projectId: number, sprintId: number) =>
+    api.patch<ProjectSprint>(`/projects/${projectId}/sprints/${sprintId}/activate`).then((r) => r.data),
+  close: (projectId: number, sprintId: number) =>
+    api.patch<ProjectSprint>(`/projects/${projectId}/sprints/${sprintId}/close`).then((r) => r.data),
+  assignTask: (projectId: number, sprintId: number, taskId: number) =>
+    api.post(`/projects/${projectId}/sprints/${sprintId}/tasks`, { task_id: taskId }).then((r) => r.data),
+  removeTask: (projectId: number, taskId: number) =>
+    api.delete(`/projects/${projectId}/sprints/tasks/${taskId}`).then((r) => r.data),
 };
 
 export const heatmapApi = {

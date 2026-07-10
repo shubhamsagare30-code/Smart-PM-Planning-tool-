@@ -30,9 +30,12 @@ interface KanbanBoardProps {
   onMoveTask?: (taskId: number, column: KanbanColumn) => void;
   onTaskClick?: (task: ProjectTask) => void;
   readOnly?: boolean;
+  activeSprintId?: number | null;
+  onAssignToSprint?: (taskId: number) => void;
+  onRemoveFromSprint?: (taskId: number) => void;
 }
 
-export function KanbanBoard({ tasks, onMoveTask, onTaskClick, readOnly }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onMoveTask, onTaskClick, readOnly, activeSprintId, onAssignToSprint, onRemoveFromSprint }: KanbanBoardProps) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-2">
       {BUCKETS.map((col) => {
@@ -61,24 +64,42 @@ export function KanbanBoard({ tasks, onMoveTask, onTaskClick, readOnly }: Kanban
                     {isDelayed(task) && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500" aria-label="Past due" />}
                   </div>
                   {task.task_uid && <p className="mt-0.5 text-[10px] text-gray-400">{task.task_uid}</p>}
+                  {task.sprint_id && activeSprintId && task.sprint_id === activeSprintId && (
+                    <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">Sprint</span>
+                  )}
                   {task.assignee_name && <p className="mt-1 text-xs text-gray-500">{task.assignee_name}</p>}
                   {task.due_date && (
                     <p className={`mt-1 text-[10px] ${isDelayed(task) ? 'font-medium text-red-500' : 'text-gray-400'}`}>
                       Due {task.due_date}
                     </p>
                   )}
-                  <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-1 text-xs text-gray-400">
                     <span>{task.actual_hours}/{task.planned_hours}h</span>
-                    {!readOnly && onMoveTask && col.key !== 'pushed_to_production' && (
-                      <select
-                        className="max-w-[90px] rounded border border-gray-200 bg-transparent text-[10px] dark:border-gray-600"
-                        value={normalizeColumn(task.kanban_column)}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => onMoveTask(task.id, e.target.value as KanbanColumn)}
-                      >
-                        {BUCKETS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-                      </select>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {activeSprintId && !readOnly && onAssignToSprint && onRemoveFromSprint && (
+                        task.sprint_id === activeSprintId ? (
+                          <button type="button" className="text-[10px] text-gray-500 hover:text-red-500"
+                            onClick={(e) => { e.stopPropagation(); onRemoveFromSprint(task.id); }}>
+                            Remove
+                          </button>
+                        ) : (
+                          <button type="button" className="text-[10px] text-brand-600 hover:underline"
+                            onClick={(e) => { e.stopPropagation(); onAssignToSprint(task.id); }}>
+                            + Sprint
+                          </button>
+                        )
+                      )}
+                      {!readOnly && onMoveTask && col.key !== 'pushed_to_production' && (
+                        <select
+                          className="max-w-[90px] rounded border border-gray-200 bg-transparent text-[10px] dark:border-gray-600"
+                          value={normalizeColumn(task.kanban_column)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => onMoveTask(task.id, e.target.value as KanbanColumn)}
+                        >
+                          {BUCKETS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

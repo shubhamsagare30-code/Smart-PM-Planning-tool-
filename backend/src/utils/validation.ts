@@ -52,6 +52,7 @@ export const projectTaskSchema = z.object({
     'product_backlog', 'ready_for_dev', 'sprint_backlog', 'work_in_progress',
     'testing', 'ready_staging_review', 'pushed_to_production', 'icebox',
   ]).optional(),
+  sprint_id: z.number().int().positive().nullable().optional(),
   due_date: z.string().optional().nullable(),
   reminder_date: z.string().optional().nullable(),
   tags: z.union([z.string(), z.array(z.string())]).optional(),
