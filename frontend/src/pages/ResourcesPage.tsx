@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Archive } from 'lucide-react';
 import { lookupsApi, resourcesApi } from '../api';
 import { Badge, statusBadge } from '../components/Badge';
