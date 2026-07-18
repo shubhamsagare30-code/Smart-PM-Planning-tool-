@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Project } from '../types';
+import { Project, Resource } from '../types';
 import { AllocationRepository } from '../repositories/allocationRepository';
 import { LeaveRepository } from '../repositories/leaveRepository';
 import { LookupRepository } from '../repositories/lookupRepository';
@@ -47,11 +47,11 @@ function stripProjectForUser(project: Project, req: Request): Project {
   return omitFinancialFields(project as unknown as Record<string, unknown>, PROJECT_FINANCIAL_KEYS) as unknown as Project;
 }
 
-function enrichResourceCapacity<T extends { id: number; status: string }>(resource: T) {
+function enrichResourceCapacity(resource: Resource) {
   if (resource.status !== 'active') {
     return { ...resource, booked_percent: 0, available_percent: 0 };
   }
-  const booked = getCurrentUtilizationForResource(resource as Parameters<typeof getCurrentUtilizationForResource>[0]);
+  const booked = getCurrentUtilizationForResource(resource);
   return {
     ...resource,
     booked_percent: booked,
