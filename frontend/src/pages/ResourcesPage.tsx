@@ -1,15 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Pencil, Archive } from 'lucide-react';
 import { lookupsApi, resourcesApi } from '../api';
 import { Badge, statusBadge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { SearchInput } from '../components/SearchInput';
+import { SortableTh, compareValues, type SortDirection } from '../components/SortableTh';
 import type { Department, EmploymentType, Resource, Skill } from '../types';
 
 const emptyForm = {
   name: '', email: '', designation: '', department_id: 0, cost_per_day: 500,
   employment_type_id: 0, capacity_percentage: 100, joining_date: '', skill_ids: [] as number[],
 };
+
+function capacityColor(pct: number, mode: 'booked' | 'available' = 'booked') {
+  if (mode === 'available') {
+    if (pct < 15) return 'text-red-600 dark:text-red-400';
+    if (pct < 35) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-green-600 dark:text-green-400';
+  }
+  if (pct > 100) return 'text-red-600 dark:text-red-400';
+  if (pct >= 80) return 'text-yellow-600 dark:text-yellow-400';
+  return 'text-green-600 dark:text-green-400';
+}
 
 export function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([]);
@@ -22,6 +34,8 @@ export function ResourcesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [sortKey, setSortKey] = useState('name');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
 
   const load = () => {
     resourcesApi.list({ search, department_id: deptFilter, skill_id: skillFilter }).then(setResources);
@@ -34,6 +48,31 @@ export function ResourcesPage() {
   }, []);
 
   useEffect(() => { load(); }, [search, deptFilter, skillFilter]);
+
+  const handleSort = (column: string) => {
+    if (sortKey === column) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(column); setSortDir('asc'); }
+  };
+
+  const sorted = useMemo(() => {
+    const rows = [...resources];
+    rows.sort((a, b) => {
+      const get = (r: Resource): unknown => {
+        switch (sortKey) {
+          case 'name': return r.name;
+          case 'designation': return r.designation;
+          case 'department': return r.department_name;
+          case 'max_capacity': return r.capacity_percentage;
+          case 'booked': return r.booked_percent ?? 0;
+          case 'available': return r.available_percent ?? 0;
+          case 'status': return r.status;
+          default: return r.name;
+        }
+      };
+      return compareValues(get(a), get(b), sortDir);
+    });
+    return rows;
+  }, [resources, sortKey, sortDir]);
 
   const openCreate = () => {
     setEditing(null);
@@ -79,7 +118,9 @@ export function ResourcesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Resources</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage team members and their capacity</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            Team roster — <strong>Max capacity</strong> is the person&apos;s limit; <strong>Booked</strong> / <strong>Available</strong> reflect today&apos;s project assignments.
+          </p>
         </div>
         <button onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" /> Add Resource</button>
       </div>
@@ -97,45 +138,57 @@ export function ResourcesPage() {
       </div>
 
       <div className="card overflow-hidden p-0">
-        <table className="w-full text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Designation</th>
-              <th className="px-4 py-3 text-left font-medium">Department</th>
-              <th className="px-4 py-3 text-left font-medium">Skills</th>
-              <th className="px-4 py-3 text-left font-medium">Capacity</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-            {resources.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{r.name}</div>
-                  <div className="text-xs text-gray-500">{r.email}</div>
-                </td>
-                <td className="px-4 py-3">{r.designation}</td>
-                <td className="px-4 py-3">{r.department_name}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {r.skills?.slice(0, 3).map((s) => <Badge key={s.id}>{s.name}</Badge>)}
-                    {(r.skills?.length || 0) > 3 && <Badge>+{(r.skills?.length || 0) - 3}</Badge>}
-                  </div>
-                </td>
-                <td className="px-4 py-3">{r.capacity_percentage}%</td>
-                <td className="px-4 py-3"><Badge variant={statusBadge(r.status)}>{r.status}</Badge></td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => openEdit(r)} className="mr-2 rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><Pencil className="h-4 w-4" /></button>
-                  {r.status === 'active' && (
-                    <button onClick={() => handleArchive(r.id)} className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><Archive className="h-4 w-4" /></button>
-                  )}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+              <tr>
+                <SortableTh label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh label="Designation" column="designation" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh label="Department" column="department" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-left font-medium">Skills</th>
+                <SortableTh label="Max capacity" column="max_capacity" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh label="Booked today" column="booked" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh label="Available today" column="available" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+              {sorted.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="text-xs text-gray-500">{r.email}</div>
+                  </td>
+                  <td className="px-4 py-3">{r.designation}</td>
+                  <td className="px-4 py-3">{r.department_name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {r.skills?.slice(0, 3).map((s) => <Badge key={s.id}>{s.name}</Badge>)}
+                      {(r.skills?.length || 0) > 3 && <Badge>+{(r.skills?.length || 0) - 3}</Badge>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600" title="Maximum % this person can be allocated">
+                    {r.capacity_percentage}%
+                  </td>
+                  <td className={`px-4 py-3 font-semibold ${capacityColor(r.booked_percent ?? 0)}`} title="Total % booked across all projects today">
+                    {r.booked_percent ?? 0}%
+                  </td>
+                  <td className={`px-4 py-3 font-semibold ${capacityColor(r.available_percent ?? 0, 'available')}`} title="Remaining % free today">
+                    {r.available_percent ?? 0}%
+                  </td>
+                  <td className="px-4 py-3"><Badge variant={statusBadge(r.status)}>{r.status}</Badge></td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openEdit(r)} className="mr-2 rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><Pencil className="h-4 w-4" /></button>
+                    {r.status === 'active' && (
+                      <button onClick={() => handleArchive(r.id)} className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><Archive className="h-4 w-4" /></button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Resource' : 'Add Resource'} wide>
@@ -155,7 +208,11 @@ export function ResourcesPage() {
                 {empTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
-            <div><label className="label">Capacity %</label><input className="input" type="number" required min={0} max={100} value={form.capacity_percentage} onChange={(e) => setForm({ ...form, capacity_percentage: +e.target.value })} /></div>
+            <div>
+              <label className="label">Max capacity %</label>
+              <input className="input" type="number" required min={0} max={100} value={form.capacity_percentage} onChange={(e) => setForm({ ...form, capacity_percentage: +e.target.value })} />
+              <p className="mt-1 text-xs text-gray-500">100% = full-time. Not the same as booked or available.</p>
+            </div>
             <div><label className="label">Joining Date</label><input className="input" type="date" required value={form.joining_date} onChange={(e) => setForm({ ...form, joining_date: e.target.value })} /></div>
           </div>
           <div>
