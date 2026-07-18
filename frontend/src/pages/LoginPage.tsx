@@ -2,6 +2,38 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { BarChart3, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ApiDiagnostics } from '../components/ApiDiagnostics';
+
+function formatLoginError(err: unknown): string {
+  const ax = err as {
+    response?: { status?: number; data?: { error?: string } | string };
+    code?: string;
+    message?: string;
+  };
+  const status = ax.response?.status;
+  const data = ax.response?.data;
+  const serverMsg = typeof data === 'string' ? data : data?.error;
+
+  if (status === 502 || status === 504 || (typeof serverMsg === 'string' && serverMsg.includes('ROUTER_EXTERNAL_TARGET'))) {
+    return 'Backend unreachable (Vercel → Render 502). Render service is down or cold-starting — open Connection debugger below.';
+  }
+  if (status === 404) {
+    return 'Cannot reach API (404). Check Vercel rewrites → Render URL, then redeploy.';
+  }
+  if (status === 401) {
+    return 'Invalid email or password. On Render Shell run seed-auth / restart if users are missing.';
+  }
+  if (status === 403) {
+    return serverMsg || 'Account is deactivated.';
+  }
+  if (ax.code === 'ECONNABORTED' || ax.message?.toLowerCase().includes('timeout')) {
+    return 'Login timed out waiting for Render. Free tier can take 30–60s to wake — retry once.';
+  }
+  if (!ax.response) {
+    return 'Network error — backend may be offline. Check Connection debugger and Render status.';
+  }
+  return serverMsg || `Login failed (HTTP ${status ?? '?'}).`;
+}
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -17,19 +49,12 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
+      console.info('[SmartPM login] attempt', { email: email.trim(), apiBase: import.meta.env.VITE_API_URL || '/api' });
       await login(email.trim(), password);
+      console.info('[SmartPM login] success');
     } catch (err: unknown) {
-      const ax = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
-      const status = ax.response?.status;
-      if (status === 404) {
-        setError('Cannot reach API. Ensure backend is running (local: port 3001) or redeploy Render with latest code.');
-      } else if (status === 401) {
-        setError('Invalid email or password. Run: cd backend && npm run seed-auth — then restart backend.');
-      } else if (!ax.response) {
-        setError('Network error — backend may be offline. Start backend: cd backend && npm run dev');
-      } else {
-        setError(ax.response?.data?.error || 'Login failed. Please try again.');
-      }
+      console.error('[SmartPM login] failed', err);
+      setError(formatLoginError(err));
     } finally {
       setLoading(false);
     }
@@ -63,6 +88,8 @@ export function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        <ApiDiagnostics lastLoginError={error || null} />
 
         <div className="mt-6 rounded-lg bg-gray-50 p-3 text-xs text-gray-500 dark:bg-gray-800">
           <p className="font-medium text-gray-700 dark:text-gray-300">Test accounts (after seed-auth)</p>

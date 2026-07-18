@@ -1,13 +1,19 @@
-# Render deployment — Smart PM Tool v3.1.0
+# Render deployment — Smart PM Tool
 # Dashboard: https://dashboard.render.com
+# Auto-deploys on push when the service is linked to this repo + branch.
 
 services:
   - type: web
     name: smart-pm-planning-tool
     runtime: node
+    plan: free
+    region: oregon
     rootDir: backend
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
+    autoDeploy: true
+    branch: smart-pm-tool-july-26
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,3 +21,5 @@ services:
         generateValue: true
       - key: CORS_ORIGIN
         value: https://smart-pm-planning-tool-wjjt.vercel.app
+      - key: DB_PATH
+        value: ./data/capacity.db

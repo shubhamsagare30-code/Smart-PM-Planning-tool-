@@ -9,7 +9,10 @@ import { getStoredToken } from '../auth/token';
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
 
-const api = axios.create({ baseURL });
+const api = axios.create({
+  baseURL,
+  timeout: 90000, // Render free tier cold starts can exceed 30s
+});
 
 api.interceptors.request.use((config) => {
   const token = getStoredToken();

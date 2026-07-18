@@ -9,7 +9,7 @@ function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
   if (origin === config.corsOrigin) return true;
   if (origin.startsWith('http://localhost:')) return true;
-  if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) return true;
+  if (/^https:\/\/[\w.-]+\.vercel\.app$/.test(origin)) return true;
   const extra = process.env.CORS_ORIGIN_EXTRA?.split(',').map((s) => s.trim()) || [];
   return extra.includes(origin);
 }
